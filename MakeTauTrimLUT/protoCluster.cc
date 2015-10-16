@@ -36,11 +36,11 @@ void protoCluster::initProto (bool isWest, bool hasNN, bool hasSS)
     setFlag (0,  1, true);
     setFlag (0, -1, true);
   
-    if (hasNN) setFlag (0,  2, true);
-    else       setFlag (0,  2, false);
+    if (hasNN) setFlag (0,  -2, true); // remember: firmware is inverted so N stays in -2
+    else       setFlag (0,  -2, false);
 
-    if (hasSS) setFlag (0, -2, true);
-    else       setFlag (0, -2, false);
+    if (hasSS) setFlag (0, 2, true);    // same for S hat has LARGER phi
+    else       setFlag (0, 2, false);
 
     if (isWest) // west is on the "left" --> -1
     {
@@ -80,6 +80,7 @@ bool protoCluster::getFlag (int iEta, int iPhi)
     return _TT[idx.first][idx.second];
 }
 
+// used for the lut that trims the SECONDARY
 bool protoCluster::overlap (protoCluster& neighbor, int dEta, int dPhi, int iEta, int iPhi)
 {
     // if no overlap is possible due to too big dEta / dPhi, return false
@@ -94,6 +95,24 @@ bool protoCluster::overlap (protoCluster& neighbor, int dEta, int dPhi, int iEta
     if (thisiEta == 0 && thisiPhi == 0) return true; // I'm checking the seed so overlap by default
 
     return (getFlag(thisiEta, thisiPhi)); // true if I have a valid TT here!
+}
+
+// used for the lut that trims the MAIN
+bool protoCluster::overlapHere (protoCluster& neighbor, int dEta, int dPhi, int iEta, int iPhi)
+{
+    // if no overlap is possible due to too big dEta / dPhi, return false
+    if (abs(dEta) > 2 || abs (dPhi) > 4) return false;
+
+    // compute position of required TT in NEIGHBOR reference frame 
+    int neighiEta = iEta - dEta; 
+    int neighiPhi = iPhi - dPhi;
+
+    // if if this new position is out of bounds of neighbor return false
+    if (abs(neighiEta) > 1 || abs(neighiPhi) > 2) return false;
+    if (neighiEta == 0 && neighiPhi == 0) return true; // I'm checking the seed so overlap by default
+
+    // check overlap; useful to to the && because veto changes according to this cluster being West or not
+    return (neighbor.getFlag(neighiEta, neighiPhi) && getFlag(iEta, iPhi));
 }
 
 

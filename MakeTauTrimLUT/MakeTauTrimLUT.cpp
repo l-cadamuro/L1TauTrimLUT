@@ -9,6 +9,7 @@
 // C - INPUT: line number is formed by combining:
 //     line# = [neigh addr] [isWestMain] [isWestSec] [hasNN] [hasSS]
 //      7 bit      3 bit       1 bit        1 bit      1bit   1 bit  ==> 128 lines in total
+// has NN, hasSS: refer to the SECONDARY cluster for the LUIT that trims the MAIN
 // D - OUTPUT: bit mask to be applied on the secondary cluster
 //     output is on 7 bits
 
@@ -75,28 +76,51 @@ int main()
 
     // neigbors
     vector <pair<int, int> > neigPos (8); // numbering of neighbors; iEta, iPhi
+    // neigPos.at(0) = make_pair (0,   3);   
+    // neigPos.at(1) = make_pair (-1,  2);
+    // neigPos.at(2) = make_pair (0,   2);
+    // neigPos.at(3) = make_pair (1,   2);    
+    // neigPos.at(4) = make_pair (-1, -2);
+    // neigPos.at(5) = make_pair (0,  -2);
+    // neigPos.at(6) = make_pair (1,  -2);    
+    // neigPos.at(7) = make_pair (0,  -3);
     neigPos.at(0) = make_pair (0,   3);   
-    neigPos.at(1) = make_pair (-1,  2);
+    neigPos.at(1) = make_pair (1,   2);
     neigPos.at(2) = make_pair (0,   2);
-    neigPos.at(3) = make_pair (1,   2);    
-    neigPos.at(4) = make_pair (-1, -2);
+    neigPos.at(3) = make_pair (-1,  2);    
+    neigPos.at(4) = make_pair (1,  -2);
     neigPos.at(5) = make_pair (0,  -2);
-    neigPos.at(6) = make_pair (1,  -2);    
+    neigPos.at(6) = make_pair (-1, -2);    
     neigPos.at(7) = make_pair (0,  -3);
+
 
     // clusters on which the mask is encoded;
     // order is the internal ring from NW then clockwise, then NN, then SS
+    // --> it's the opposite in thw firmware but no problem, using only relative eta
+    // this should work fine
+    // anyway these cluster numbers are my conventions so don't affect final LUT
+    // boh mi sono perso spero che funzioni
     vector <pair<int, int> > TTPos (10); // numbering of TT in cluster; iEta, iPhi
-    TTPos.at(0) = make_pair (-1,  1);
-    TTPos.at(1) = make_pair (0,   1);
-    TTPos.at(2) = make_pair (1,   1);
-    TTPos.at(3) = make_pair (1,   0);
-    TTPos.at(4) = make_pair (1,  -1);
-    TTPos.at(5) = make_pair (0,  -1);
-    TTPos.at(6) = make_pair (-1, -1);
-    TTPos.at(7) = make_pair (-1,  0);
-    TTPos.at(8) = make_pair (0,   2);
-    TTPos.at(9) = make_pair (0,  -2);
+    // TTPos.at(0) = make_pair (-1,  1); // SW
+    // TTPos.at(1) = make_pair (0,   1); // S
+    // TTPos.at(2) = make_pair (1,   1); // SE
+    // TTPos.at(3) = make_pair (1,   0); // E
+    // TTPos.at(4) = make_pair (1,  -1); // NE
+    // TTPos.at(5) = make_pair (0,  -1); // N
+    // TTPos.at(6) = make_pair (-1, -1); // NW
+    // TTPos.at(7) = make_pair (-1,  0); // W
+    // TTPos.at(8) = make_pair (0,   2); // SS
+    // TTPos.at(9) = make_pair (0,  -2); // NN
+    TTPos.at(0) = make_pair (1,   1); // SW
+    TTPos.at(1) = make_pair (0,   1); // S
+    TTPos.at(2) = make_pair (-1,  1); // SE
+    TTPos.at(3) = make_pair (-1,  0); // E
+    TTPos.at(4) = make_pair (-1, -1); // NE
+    TTPos.at(5) = make_pair (0,  -1); // N
+    TTPos.at(6) = make_pair (1,  -1); // NW
+    TTPos.at(7) = make_pair (1,   0); // W
+    TTPos.at(8) = make_pair (0,   2); // SS
+    TTPos.at(9) = make_pair (0,  -2); // NN
 
     // prepare LUT
     for (int iNeigh = 0; iNeigh < 8; iNeigh++)
@@ -109,8 +133,8 @@ int main()
                 {
                     for (int hasSS = 0; hasSS <= 1; hasSS++)
                     {
-                        mainCluster.initProto (isWmain, hasNN, hasSS);
-                        secondaryCluster.initProto (isWsec, true, true); // I don't care if secondary has NN or SS as I must veto using the main cluster flags
+                        mainCluster.initProto (isWmain, true, true); // I don't care if main has NN or SS as I must veto using the secondary cluster flags
+                        secondaryCluster.initProto (isWsec, hasNN, hasSS);
                         
                         int line = getLineNumber (iNeigh, isWmain, isWsec, hasNN, hasSS);
                         int dEta = neigPos.at(iNeigh).first;
@@ -122,7 +146,7 @@ int main()
                         {
                             int iEta = TTPos.at(iTT).first;
                             int iPhi = TTPos.at(iTT).second;
-                            if (mainCluster.overlap (secondaryCluster, dEta, dPhi, iEta, iPhi))
+                            if (mainCluster.overlapHere (secondaryCluster, dEta, dPhi, iEta, iPhi))
                                 bitmask &= ~(1 << iTT); // clears bit iTT
                         }
 
@@ -134,10 +158,10 @@ int main()
         }
     }
     
-    std::ofstream fOutUnreduced ("unreducedLUT.txt");
+    std::ofstream fOutUnreduced ("unreducedLUT_TrimMain.txt");
     printLUT (LUT, std::cout, 10, true);
     printLUT (LUT, fOutUnreduced, 10, true);    
-    std::ofstream fOutUnreducedDec ("unreducedDecimalLUT.txt");
+    std::ofstream fOutUnreducedDec ("unreducedDecimalLUT_TrimMain.txt");
     printLUTIntegers (LUT, fOutUnreducedDec, true);    
     
     // --------------
@@ -176,10 +200,13 @@ int main()
 
     cout << " =========================================== " << endl;
     std::sort (LUTreduced.begin(), LUTreduced.end()); // not used because already ordered by construciton
-    std::ofstream fOutTrimLUT ("trimLUT.txt");
+    std::ofstream fOutTrimLUT ("trimLUT_TrimMain.txt");
     printLUT (LUTreduced, std::cout, 7, true);
     printLUT (LUTreduced, fOutTrimLUT, 7, true);    
 
+    std::ofstream fOutFinalLUT ("trimLUT_TrimMain_VHDL.txt");
+    std::reverse (LUTreduced.begin(), LUTreduced.end());
+    printLUT (LUTreduced, fOutFinalLUT, 7, false); // reverted + no line number
 
 
 
